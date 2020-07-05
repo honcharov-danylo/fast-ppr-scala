@@ -28,7 +28,7 @@ object Main{
     val nodes_ids = (1 to graph.nodeCount).toList
     val sample_size = 1251
     val sample = Random.shuffle(nodes_ids).take(sample_size).par // parralel sample
-    sample.tasksupport = new ForkJoinTaskSupport(new scala.concurrent.forkjoin.ForkJoinPool(8))
+    sample.tasksupport = new ForkJoinTaskSupport(new scala.concurrent.forkjoin.ForkJoinPool(12))
 
 
     val ResultMap:TrieMap[String, Float] = TrieMap()
@@ -36,17 +36,18 @@ object Main{
     val counter = new AtomicInteger(0)
     sample.foreach { case f =>
       for (t <- 0 to graph.nodeCount - 1) {
-                try {
-                  val ppr = FastPPR.estimatePPR(graph, f, t, config)
-                  val key = f.toString() + "#" + t.toString()
-                  ResultMap(key) = ppr
-                }
-                catch {
-                  case: Exception  => {
-                    println("exception for the nodes " + f.toString()+ " and "+t.toString())
-                    ResultMap(key) = 0
-                }
-              }
+        try {
+          val ppr = FastPPR.estimatePPR(graph, f, t, config)
+          val key = f.toString() + "#" + t.toString()
+          ResultMap(key) = ppr
+        }
+        catch {
+          case e: Exception => {
+            println("exception for the nodes " + f.toString() + " and " + t.toString())
+            ResultMap(key) = 0
+          }
+        }
+      }
       val c = counter.incrementAndGet();
       println(c.toString()+"/1251")
     }
