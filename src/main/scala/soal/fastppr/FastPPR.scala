@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 
 package soal.fastppr
 
-import com.twitter.cassovary.graph.DirectedGraph
+import com.twitter.cassovary.graph.{DirectedGraph, ArrayBasedDirectedGraph, SharedArrayBasedDirectedGraph}
 import scala.collection.mutable
 import soal.util.HeapMappedPriorityQueue
 import scala.util.Random
@@ -26,11 +26,11 @@ object FastPPR {
   /** Returns an estimate of ppr(start, target).  Its accuracy depends on the parameters in config.  If balanced is true,
     * it attempts to balanced forward and backward work to decrease running time without significantly changing the accuracy.
    */
-  def estimatePPR(graph: DirectedGraph,
+  def estimatePPR(graph: ArrayBasedDirectedGraph,
               startId: Int,
               targetId: Int,
               config: FastPPRConfiguration,
-              balanced: Boolean = true): Float = {
+              balanced: Boolean = false): Float = {
     val (inversePPREstimates, reversePPRSignificanceThreshold) =
       if (balanced)
         estimateInversePPRBalanced(graph, targetId, config)
@@ -39,10 +39,11 @@ object FastPPR {
         (estimateInversePPR(graph, targetId, config, config.reversePPRApproximationFactor * reverseThreshold),
           reverseThreshold)
       }
+//    println(inversePPREstimates)
+//    println(inversePPREstimates.getOrElse(startId, 0.0f))
     val frontier = computeFrontier(graph, inversePPREstimates, reversePPRSignificanceThreshold)
 
     val forwardPPRSignificanceThreshold = config.pprSignificanceThreshold / reversePPRSignificanceThreshold
-
     val startNodeInTargetSet = (inversePPREstimates.getOrElse(startId, 0.0f) >= reversePPRSignificanceThreshold)
     if (startNodeInTargetSet || frontier.contains(startId))
       return inversePPREstimates(startId)
@@ -55,7 +56,7 @@ object FastPPR {
   /**
    * Returns an estimate of the PPR from start to the frontier, using weights in inversePPREstimates.
    */
-  private def pprToFrontier(graph: DirectedGraph,
+  private def pprToFrontier(graph: ArrayBasedDirectedGraph,
                     startId: Int,
                     forwardPPRSignificanceThreshold: Float,
                     config: FastPPRConfiguration,
@@ -78,7 +79,7 @@ object FastPPR {
     estimate.toFloat
   }
 
-  def monteCarloPPR(graph: DirectedGraph,
+  def monteCarloPPR(graph: ArrayBasedDirectedGraph,
                     startId: Int,
                     walkCount: Int,
                     teleportProbability: Float): mutable.Map[Int, Float] = {
@@ -103,7 +104,7 @@ object FastPPR {
 
   /** Returns a map from nodeId to ppr(node, target) up to a fixed additive accuracy pprErrorTolerance. */
   def estimateInversePPR(
-                          graph: DirectedGraph,
+                          graph: ArrayBasedDirectedGraph,
                           targetId: Int,
                           config: FastPPRConfiguration,
                           pprErrorTolerance: Float): mutable.Map[Int, Float] = {
@@ -124,6 +125,7 @@ object FastPPR {
       val vResidual = inversePPRResiduals(vId)
       inversePPRResiduals(vId) = 0.0f
       val v = graph.getNodeById(vId).get
+      //      print(v.inboundNodes())
       for (uId <- v.inboundNodes()) {
         val u = graph.getNodeById(uId).get
         val deltaPriority = (1.0f - config.teleportProbability) / u.outboundCount * vResidual
@@ -131,10 +133,8 @@ object FastPPR {
         inversePPREstimates(uId) += deltaPriority
         if (inversePPRResiduals(uId) >= largeResidualThreshold && inversePPRResiduals(uId) - deltaPriority < largeResidualThreshold)
           largeResidualNodes.add(uId)
-
       }
     }
-
     debias(graph, config, inversePPREstimates, pprErrorTolerance / config.reversePPRApproximationFactor, pprErrorTolerance)
 
     inversePPREstimates
@@ -145,7 +145,7 @@ object FastPPR {
     * @return (inversePPREstimates, reversePPRSignificanceThreshold)
     */
   def estimateInversePPRBalanced(
-                                  graph: DirectedGraph,
+                                  graph: ArrayBasedDirectedGraph,
                                   targetId: Int,
                                   config: FastPPRConfiguration): (mutable.Map[Int, Float], Float) = {
     val inversePPRResiduals = new HeapMappedPriorityQueue[Int]()
@@ -201,7 +201,7 @@ object FastPPR {
    */
 
   def debias(
-                graph: DirectedGraph,
+                graph: ArrayBasedDirectedGraph,
                 config: FastPPRConfiguration,
                 inversePPREstimates: mutable.Map[Int, Float],
                 reversePPRSignificanceThreshold: Float,
@@ -222,7 +222,7 @@ object FastPPR {
     */
 
   def computeFrontier(
-                      graph: DirectedGraph,
+                      graph: ArrayBasedDirectedGraph,
                       inversePPREstimates: mutable.Map[Int, Float],
                       reversePPRSignificanceThreshold: Float): mutable.Set[Int] = {
     val frontier = new mutable.HashSet[Int]()
