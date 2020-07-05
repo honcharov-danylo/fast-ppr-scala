@@ -36,9 +36,9 @@ object Main{
     val counter = new AtomicInteger(0)
     sample.foreach { case f =>
       for (t <- 0 to graph.nodeCount - 1) {
+        val key = f.toString() + "#" + t.toString()
         try {
           val ppr = FastPPR.estimatePPR(graph, f, t, config)
-          val key = f.toString() + "#" + t.toString()
           ResultMap(key) = ppr
         }
         catch {
